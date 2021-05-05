@@ -1,4 +1,4 @@
-# Updated ogo_internal calibration:
+### Updated ogo_internal calibration:
 
 -Link to ITK-SNAP to select calibration tissues 
 
