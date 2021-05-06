@@ -53,8 +53,8 @@ class MainWindow(QMainWindow):
                         'function': np.mean,
                         'value': 0
                     },
-                    'variance': {
-                        'function': np.var,
+                    'standard deviation': {
+                        'function': np.std,
                         'value': 0
                     },
                     'min': {
@@ -76,8 +76,8 @@ class MainWindow(QMainWindow):
                         'function': np.mean,
                         'value': 0
                     },
-                    'variance': {
-                        'function': np.var,
+                    'standard deviation': {
+                        'function': np.std,
                         'value': 0
                     },
                     'min': {
@@ -98,8 +98,8 @@ class MainWindow(QMainWindow):
                         'function': np.mean,
                         'value': 0
                     },
-                    'variance': {
-                        'function': np.var,
+                    'standard deviation': {
+                        'function': np.std,
                         'value': 0
                     },
                     'min': {
@@ -237,10 +237,14 @@ class MainWindow(QMainWindow):
             roi = ogo.maskThreshold(self.mask, self.materials_dict[m]['ID'])
             data = ogo.applyMask(self.image, roi)
 
+            data = ogo.vtk2numpy(data).flatten()
+
+            data = data[data!=0]
+
             for s in self.materials_dict[m]['stats']:
 
                 self.materials_dict[m]['stats'][s]['value'] = \
-                    self.materials_dict[m]['stats'][s]['function'](ogo.vtk2numpy(data).flatten())
+                    self.materials_dict[m]['stats'][s]['function'](data)
 
         self.update_material_tables()
 
