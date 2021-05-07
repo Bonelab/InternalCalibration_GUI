@@ -1,5 +1,6 @@
 import sys
 import copy
+import time
 
 import numpy as np
 import pandas as pd
@@ -9,7 +10,7 @@ from PyQt5 import Qt
 from PyQt5.QtWidgets import (
     QMainWindow, QMenuBar, QMenu, QAction, QFileDialog, QErrorMessage,
     QFrame, QVBoxLayout, QHBoxLayout, QGridLayout, QScrollArea, QTableWidget,
-    QGroupBox, QWidget, QPushButton, QTableWidgetItem
+    QGroupBox, QWidget, QPushButton, QTableWidgetItem, QCheckBox
 )
 
 from vtk.util.numpy_support import vtk_to_numpy, numpy_to_vtk
@@ -66,23 +67,28 @@ class MainWindow(QMainWindow):
         self.stats_dict = {
             'mean': {
                 'function': self.get_mean,
-                'value': 0
+                'value': 0,
+                'enabled': True
             },
             'standard deviation': {
                 'function': self.get_std,
-                'value': 0
+                'value': 0,
+                'enabled': True
             },
             'min': {
                 'function': self.get_min,
-                'value': 0
+                'value': 0,
+                'enabled': True
             },
             'max': {
                 'function': self.get_max,
-                'value': 0
+                'value': 0,
+                'enabled': True
             },
             'slices': {
                 'function': self.get_slices,
-                'value': []
+                'value': [],
+                'enabled': True
             }
         }
 
@@ -100,6 +106,7 @@ class MainWindow(QMainWindow):
         self.layout = QVBoxLayout()
 
         self.layout.addWidget(self._create_buttons_group_box())
+        self.layout.addWidget(self._create_checkboxes_group_box())
         self.layout.addWidget(self._create_scroll_area())
 
         self.frame.setLayout(self.layout)
@@ -128,6 +135,23 @@ class MainWindow(QMainWindow):
         self.buttons_group_box.setLayout(self.buttons_group_box_layout)
 
         return self.buttons_group_box
+
+    def _create_checkboxes_group_box(self):
+
+        self.checkboxes_group_box = QGroupBox('Stats to calculate')
+
+        self.checkboxes_group_box_layout = QVBoxLayout()
+
+        for s in self.stats_dict.keys():
+            self.stats_dict[s]['checkbox_widget'] = QCheckBox()
+            self.stats_dict[s]['checkbox_widget'].setChecked(self.stats_dict[s]['enabled'])
+            self.stats_dict[s]['checkbox_widget'].setText(s)
+            self.stats_dict[s]['checkbox_widget'].stateChanged.connect(self.update_stats_flags)
+            self.checkboxes_group_box_layout.addWidget(self.stats_dict[s]['checkbox_widget'])
+
+        self.checkboxes_group_box.setLayout(self.checkboxes_group_box_layout)
+
+        return self.checkboxes_group_box
 
     def _create_scroll_area(self):
 
@@ -211,20 +235,27 @@ class MainWindow(QMainWindow):
             print('No mask loaded, cannot update')
             return
 
+        start_time = time.time()
+
+        image = vtk_to_numpy(self.image.GetPointData().GetScalars()).reshape(self.image.GetDimensions(),order='F')
+        mask = vtk_to_numpy(self.mask.GetPointData().GetScalars()).reshape(self.mask.GetDimensions(),order='F')
+
+        print(f'Took {time.time()-start_time:0.2f} to convert to numpy')
+
         for m in self.materials_dict.keys():
 
             #roi = ogo.maskThreshold(self.mask, self.materials_dict[m]['ID'])
             #data = ogo.applyMask(self.image, roi)
 
-            image = vtk_to_numpy(self.image.GetPointData().GetScalars()).reshape(self.image.GetDimensions(),order='F')
-            mask = vtk_to_numpy(self.mask.GetPointData().GetScalars()).reshape(self.mask.GetDimensions(),order='F')
-
             for s in self.materials_dict[m]['stats']:
 
-                id = self.materials_dict[m]['ID']
+                if self.materials_dict[m]['stats'][s]['enabled']:
 
-                self.materials_dict[m]['stats'][s]['value'] = \
-                    self.materials_dict[m]['stats'][s]['function'](image,mask,id)
+                    mask_id = mask==self.materials_dict[m]['ID']
+                    masked_image = image[mask_id]
+
+                    self.materials_dict[m]['stats'][s]['value'] = \
+                        self.materials_dict[m]['stats'][s]['function'](image,mask_id,masked_image)
 
         self.update_material_tables()
 
@@ -239,20 +270,26 @@ class MainWindow(QMainWindow):
                 self.materials_dict[m]['table'].setItem(i,1,QTableWidgetItem(f"{self.materials_dict[m]['stats'][s]['value']}"))
                 i += 1
 
-    def get_mean(self,image,mask,id):
-        return np.mean(image[mask==id])
+    def update_stats_flags(self):
+        for s in self.stats_dict.keys():
+            self.stats_dict[s]['enabled'] = self.stats_dict[s]['checkbox_widget'].isChecked()
+            for m in self.materials_dict.keys():
+                self.materials_dict[m]['stats'][s]['enabled'] = self.stats_dict[s]['enabled']
 
-    def get_std(self,image,mask,id):
-        return np.std(image[mask==id])
+    def get_mean(self,image,mask_id,masked_image):
+        return np.mean(masked_image)
 
-    def get_min(self,image,mask,id):
-        return np.amin(image[mask==id])
+    def get_std(self,image,mask_id,masked_image):
+        return np.std(masked_image)
 
-    def get_max(self,image,mask,id):
-        return np.amax(image[mask==id])
+    def get_min(self,image,mask_id,masked_image):
+        return np.amin(masked_image)
 
-    def get_slices(self,image,mask,id):
-        return list(np.unique(np.nonzero(mask==id)[2])+1)
+    def get_max(self,image,mask_id,masked_image):
+        return np.amax(masked_image)
+
+    def get_slices(self,image,mask_id,masked_image):
+        return list(np.unique(np.nonzero(mask_id)[2])+1)
 
     def _start(self):
 
