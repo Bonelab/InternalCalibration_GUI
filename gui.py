@@ -1,4 +1,5 @@
 import sys
+import copy
 
 import numpy as np
 import pandas as pd
@@ -11,15 +12,15 @@ from PyQt5.QtWidgets import (
     QGroupBox, QWidget, QPushButton, QTableWidgetItem
 )
 
+from vtk.util.numpy_support import vtk_to_numpy, numpy_to_vtk
+
 import ogo_helper_3Materials_BoneMuscleAir as ogo
 
 class MainWindow(QMainWindow):
 
-    def __init__(self, parent=None, image=None):
+    def __init__(self, parent=None):
 
         super().__init__(parent)
-
-        self.image = image
 
         self._create_actions()
         self._create_menu_bar()
@@ -47,72 +48,50 @@ class MainWindow(QMainWindow):
         self.materials_dict = {
             'Air': {
                 'ID': 2,
-                'color': 'green',
-                'stats': {
-                    'mean': {
-                        'function': np.mean,
-                        'value': 0
-                    },
-                    'standard deviation': {
-                        'function': np.std,
-                        'value': 0
-                    },
-                    'min': {
-                        'function': np.min,
-                        'value': 0
-                    },
-                    'max': {
-                        'function': np.max,
-                        'value': 0
-                    },
-                }
-
+                'color': 'green'
             },
             'Cortical Bone': {
                 'ID': 4,
-                'color': 'purple',
-                'stats': {
-                    'mean': {
-                        'function': np.mean,
-                        'value': 0
-                    },
-                    'standard deviation': {
-                        'function': np.std,
-                        'value': 0
-                    },
-                    'min': {
-                        'function': np.min,
-                        'value': 0
-                    },
-                    'max': {
-                        'function': np.max,
-                        'value': 0
-                    },
-                }
+                'color': 'purple'
             },
             'Skeletal Muscle': {
                 'ID': 5,
-                'color': 'teal',
-                'stats': {
-                    'mean': {
-                        'function': np.mean,
-                        'value': 0
-                    },
-                    'standard deviation': {
-                        'function': np.std,
-                        'value': 0
-                    },
-                    'min': {
-                        'function': np.min,
-                        'value': 0
-                    },
-                    'max': {
-                        'function': np.max,
-                        'value': 0
-                    },
-                }
+                'color': 'teal'
             }
         }
+
+        # then we define all of the stats we want to calculate, and the
+        # functions used to calculate them
+
+        self.stats_dict = {
+            'mean': {
+                'function': self.get_mean,
+                'value': 0
+            },
+            'standard deviation': {
+                'function': self.get_std,
+                'value': 0
+            },
+            'min': {
+                'function': self.get_min,
+                'value': 0
+            },
+            'max': {
+                'function': self.get_max,
+                'value': 0
+            },
+            'slices': {
+                'function': self.get_slices,
+                'value': []
+            }
+        }
+
+        # then we add these stats to the materials dict
+
+        for m in self.materials_dict.keys():
+            self.materials_dict[m]['stats'] = {}
+            for s in self.stats_dict.keys():
+                self.materials_dict[m]['stats'][s] = self.stats_dict[s].copy()
 
 
     def _create_layout(self):
@@ -170,7 +149,7 @@ class MainWindow(QMainWindow):
             )
 
             self.materials_dict[m]['table'] = QTableWidget()
-            self.materials_dict[m]['table'].setMinimumHeight(100)
+            self.materials_dict[m]['table'].setMinimumHeight(35*len(self.stats_dict.keys()))
             layout.addWidget(self.materials_dict[m]['table'])
 
             self.scroll_area_layout.addWidget(group_box)
@@ -234,17 +213,18 @@ class MainWindow(QMainWindow):
 
         for m in self.materials_dict.keys():
 
-            roi = ogo.maskThreshold(self.mask, self.materials_dict[m]['ID'])
-            data = ogo.applyMask(self.image, roi)
+            #roi = ogo.maskThreshold(self.mask, self.materials_dict[m]['ID'])
+            #data = ogo.applyMask(self.image, roi)
 
-            data = ogo.vtk2numpy(data).flatten()
-
-            data = data[data!=0]
+            image = vtk_to_numpy(self.image.GetPointData().GetScalars()).reshape(self.image.GetDimensions(),order='F')
+            mask = vtk_to_numpy(self.mask.GetPointData().GetScalars()).reshape(self.mask.GetDimensions(),order='F')
 
             for s in self.materials_dict[m]['stats']:
 
+                id = self.materials_dict[m]['ID']
+
                 self.materials_dict[m]['stats'][s]['value'] = \
-                    self.materials_dict[m]['stats'][s]['function'](data)
+                    self.materials_dict[m]['stats'][s]['function'](image,mask,id)
 
         self.update_material_tables()
 
@@ -256,9 +236,23 @@ class MainWindow(QMainWindow):
             self.materials_dict[m]['table'].setRowCount(len(self.materials_dict[m]['stats'].keys()))
             for s in self.materials_dict[m]['stats'].keys():
                 self.materials_dict[m]['table'].setItem(i,0,QTableWidgetItem(s))
-                self.materials_dict[m]['table'].setItem(i,1,QTableWidgetItem(f"{self.materials_dict[m]['stats'][s]['value']:0.2f}"))
+                self.materials_dict[m]['table'].setItem(i,1,QTableWidgetItem(f"{self.materials_dict[m]['stats'][s]['value']}"))
                 i += 1
 
+    def get_mean(self,image,mask,id):
+        return np.mean(image[mask==id])
+
+    def get_std(self,image,mask,id):
+        return np.std(image[mask==id])
+
+    def get_min(self,image,mask,id):
+        return np.amin(image[mask==id])
+
+    def get_max(self,image,mask,id):
+        return np.amax(image[mask==id])
+
+    def get_slices(self,image,mask,id):
+        return list(np.unique(np.nonzero(mask==id)[2])+1)
 
     def _start(self):
 

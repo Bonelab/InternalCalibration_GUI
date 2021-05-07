@@ -28,6 +28,9 @@ from datetime import date
 from collections import OrderedDict
 import subprocess
 from PyQt5.QtWidgets import QApplication
+from PyQt5 import Qt
+
+import gui
 
 ####
 # Start Script
@@ -50,6 +53,11 @@ tt = os.popen('ps ax | grep ITK-SNAP').read()
 pid = tt.split()[0]
 new_pid = tt.split()[0]
 # print(pid)
+
+mask_stats = Qt.QApplication(sys.argv)
+window = gui.MainWindow()
+mask_stats.exec_()
+
 
 # Wait until user closes ITK-SNAP, then continue running
 while pid==new_pid:
