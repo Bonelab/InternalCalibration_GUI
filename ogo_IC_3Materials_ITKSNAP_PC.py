@@ -14,6 +14,8 @@
 # - Modified to use 3 reference tissues (bone, muscle, air) instead of the original 5 (bone, muscle, air, adipose, blood)
 # - Modified to incorporate ITK-SNAP for all-in-one selection of tissues & running of internal calibration
 # - Add dialog box to select file
+# - Add DICOM to NIFTI converter
+# - Add PC compatibility
 #####
 
 script_version = 1.1
@@ -35,18 +37,23 @@ import gui
 ####
 # Start Script
 
-# Ask user to select uncalibrated image file:
+# Ask user to select the file for the first, uncalibrated dicom image:
+# (dicoms must be in uncompressed format)
 app = QApplication(sys.argv)
 ex = ogo.FileDlg()
 image = ex.openFileNameDialog()
 # print(image)
 
+#Convert DICOM to NIFTI:
+image_pathname = os.path.dirname(image)
+nii_fnm = os.path.split(image_pathname)[1]
+ogo.dicom2nifti(image_pathname, nii_fnm)
+image = image_pathname+'/'+nii_fnm+'.nii'
+
 
 
 # Call ITK-SNAP and load in the correct image
 # image = '/Volumes/Work/MetastaticBoneDisease/InternalCalibration/QCT_CAL/IncorporateITKSNAP/QCTCAL_0002.nii'
-image_pathname = os.path.dirname(image)
-
 os.system('start ITK-SNAP.lnk '+image)
 
 mask_stats = Qt.QApplication(sys.argv)
@@ -66,7 +73,7 @@ if len(split_line) > 5:
 	print("ERROR: you can not have spaces in your image file names!!")
 	sys.exit()
 mask_fnm = split_line[4]
-	
+
 # print(ttt.split()[8])
 
 # subprocess.run(['open', '-a', 'ITK-SNAP'])

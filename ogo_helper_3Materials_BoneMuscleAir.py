@@ -15,6 +15,7 @@
 # Updates by Chantal de Bakker - Feb-May, 2021:
 # - Modified internal calibration functions to use 3 reference tissues (bone, muscle, air) instead of the original 5 (bone, muscle, air, adipose, blood)
 # - Add function for dialog box to select file
+# - Add DICOM to NIFTI converter
 #####
 
 ##
@@ -1433,6 +1434,19 @@ def writeTXTfile(input_dict, fileName, output_directory):
     for key, value in list(input_dict.items()):
         txt_file.write(str(key) + '\t' + str(value) + '\n')
     txt_file.close()
+
+def dicom2nifti(filePath, outputImage):
+    dicomReader = vtk.vtkDICOMImageReader()
+    dicomReader.SetDirectoryName(filePath)
+    dicomReader.Update()
+    dicomImage = dicomReader.GetOutput()
+
+    mhaWriter = vtk.vtkNIFTIImageWriter()
+    # mhaWriter.SetDirectoryName(filePath)
+    mhaWriter.SetFileName(filePath+'/'+outputImage+'.nii')
+    mhaWriter.SetInputData(dicomImage)
+    mhaWriter.Write()
+
 
 class FileDlg(QWidget):
 
