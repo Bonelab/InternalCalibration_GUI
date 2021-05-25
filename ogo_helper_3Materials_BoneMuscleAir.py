@@ -36,6 +36,8 @@ from vtk.util.numpy_support import vtk_to_numpy, numpy_to_vtk
 from collections import OrderedDict
 from PyQt5.QtWidgets import QApplication, QWidget, QInputDialog, QLineEdit, QFileDialog
 from PyQt5.QtGui import QIcon
+import shutil
+
 
 start_time = time.time()
 
@@ -1412,12 +1414,13 @@ def writeN88Model(model, fileName, pathname):
     writer.SetFileName(fileName)
     writer.Update()
 
-def writeNii(imageData, fileName, output_directory):
+def writeNii(imageData, fileName, output_directory,orientation_mat):
     """Writes out an input image as a NIFTI file.
     The first argument is the image Data. The second argument is the filename. The third argument is the output directory where the file is to be written to.
     """
     os.chdir(output_directory)
     writer = vtk.vtkNIFTIImageWriter()
+    writer.SetQFormMatrix(orientation_mat)
     writer.SetInputData(imageData)
     writer.SetFileName(fileName)
     writer.Write()
@@ -1435,18 +1438,80 @@ def writeTXTfile(input_dict, fileName, output_directory):
         txt_file.write(str(key) + '\t' + str(value) + '\n')
     txt_file.close()
 
-def dicom2nifti(filePath, outputImage):
+def remove_ScoutView(filePath):
+    series_IDs = sitk.ImageSeriesReader.GetGDCMSeriesIDs(filePath)
+    series_file_names = sitk.ImageSeriesReader.GetGDCMSeriesFileNames(filePath, series_IDs[0])
+    is_file = os.path.exists(filePath+'/scout_image_file')
+    if is_file == False:
+        os.mkdir(filePath+'/scout_image_file')
+
+    for fnm in series_file_names:
+        reader = sitk.ImageFileReader()
+        reader.SetFileName(fnm)
+        reader.LoadPrivateTagsOn()
+        reader.ReadImageInformation()
+        instance_num = reader.GetMetaData('0020|0013') #0020,0013 is the dicom tag for instance number
+        pt_orientation = reader.GetMetaData('0020|0037').split('\\') #0020|0037 is the dicom tag for patient orientation
+        #for these coronal scans, patient orientation should be: "1.000000\0.000000\0.000000\0.000000\0.000000\-1.000000"
+        #if it is "0.000000\1.000000\0.000000\0.000000\0.000000\-1.000000", then it is the sagittal scoutview.
+        if  float(pt_orientation[0]) < 0.5:
+            shutil.move(fnm,filePath+'/scout_image_file')
+
+    # print(instance_num_max)
+
+    # for fnm in series_file_names:
+    #     reader = sitk.ImageFileReader()
+    #     reader.SetFileName(fnm)
+    #     reader.LoadPrivateTagsOn()
+    #     reader.ReadImageInformation()
+    #     instance_num = reader.GetMetaData('0020|0013') #0020,0013 is the dicom tag for instance number
+    #     if instance_num < instance_num_max:
+    #         # os.mkdir(filePath+'/scout_image_files')
+    #         shutil.move(fnm,filePath+'/scout_image_files')
+
+
+
+def dicom2nifti(filePath, outputImage,orientation_mat):
+    # dicomReader = vtk.vtkDICOMImageReader()
+    # dicomReader.SetDirectoryName(filePath)
+    # dicomReader.Update()
+    # dicomImage = dicomReader.GetOutput()
+
+    remove_ScoutView(filePath)
+
+
     dicomReader = vtk.vtkDICOMImageReader()
     dicomReader.SetDirectoryName(filePath)
     dicomReader.Update()
     dicomImage = dicomReader.GetOutput()
+    pt_orientation = dicomReader.GetImageOrientationPatient()
 
-    mhaWriter = vtk.vtkNIFTIImageWriter()
-    # mhaWriter.SetDirectoryName(filePath)
-    mhaWriter.SetFileName(filePath+'/'+outputImage+'.nii')
-    mhaWriter.SetInputData(dicomImage)
-    mhaWriter.Write()
 
+
+    #Flip image so that it's in the correct anatomical orientation (not upside down):
+    # flip = vtk.vtkImageFlip()
+    # flip.SetInputConnection(dicomReader.GetOutputPort())
+    # flip.SetFilteredAxis(1)
+    # flip.Update()
+    # img_flip1 =  flip.GetOutput()
+    # flip2 = vtk.vtkImageFlip()
+    # flip2.SetInputConnection(flip.GetOutputPort())
+    # flip2.SetFilteredAxis(0)
+    # flip2.Update()
+    #
+    # img_flip2 =  flip2.GetOutput()
+    #
+    # mhaWriter = vtk.vtkNIFTIImageWriter()
+    # # mhaWriter.SetDirectoryName(filePath)
+    # mhaWriter.SetFileName(filePath+'/'+outputImage+'_flip1.nii')
+    # mhaWriter.SetInputData(img_flip1)
+    # mhaWriter.Write()
+
+    niiWriter = vtk.vtkNIFTIImageWriter()
+    niiWriter.SetFileName(filePath+'/'+outputImage+'.nii')
+    niiWriter.SetQFormMatrix(orientation_mat)
+    niiWriter.SetInputData(dicomImage)
+    niiWriter.Write()
 
 class FileDlg(QWidget):
 

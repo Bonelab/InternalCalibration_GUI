@@ -31,6 +31,7 @@ from collections import OrderedDict
 import subprocess
 from PyQt5.QtWidgets import QApplication
 from PyQt5 import Qt
+import vtk
 
 import gui
 
@@ -44,10 +45,29 @@ ex = ogo.FileDlg()
 image = ex.openFileNameDialog()
 # print(image)
 
+orientation_mat = vtk.vtkMatrix4x4()
+orientation_mat.SetElement(0,0,1)
+orientation_mat.SetElement(0,1,0)
+orientation_mat.SetElement(0,2,0)
+orientation_mat.SetElement(0,3,0)
+orientation_mat.SetElement(1,0,0)
+orientation_mat.SetElement(1,1,0)
+orientation_mat.SetElement(1,2,1)
+orientation_mat.SetElement(1,3,0)
+orientation_mat.SetElement(2,0,0)
+orientation_mat.SetElement(2,1,1)
+orientation_mat.SetElement(2,2,0)
+orientation_mat.SetElement(2,3,0)
+orientation_mat.SetElement(3,0,0)
+orientation_mat.SetElement(3,1,0)
+orientation_mat.SetElement(3,2,0)
+orientation_mat.SetElement(3,3,0)
+
 #Convert DICOM to NIFTI:
 image_pathname = os.path.dirname(image)
 nii_fnm = os.path.split(image_pathname)[1]
-ogo.dicom2nifti(image_pathname, nii_fnm)
+os.system('del /AH ._*')
+ogo.dicom2nifti(image_pathname, nii_fnm,orientation_mat)
 image = image_pathname+'/'+nii_fnm+'.nii'
 
 
@@ -65,6 +85,7 @@ input("Press Enter to continue...")
 
 # Find the newly created labels file = most recent file in directory
 #ttt = os.popen('ls -lt *.nii').read()
+os.chdir(image_pathname)
 ttt = os.popen('DIR /O-D *.nii').read()
 
 line_of_interest = ttt.split('\n')[5]
@@ -232,9 +253,9 @@ calibrated_image, ARCH_image = ogo.applyInternalCalibration(imageData, cali_para
 ##
 # Write out calibrated image
 ogo.message("Writing out the K2HPO4 calibrated image: %s" % fileName)
-ogo.writeNii(calibrated_image, fileName, image_pathname)
+ogo.writeNii(calibrated_image, fileName, image_pathname,orientation_mat)
 ogo.message("Writing out the Archimedean calibrated image: %s" % fileName2)
-ogo.writeNii(ARCH_image, fileName2, image_pathname)
+ogo.writeNii(ARCH_image, fileName2, image_pathname,orientation_mat)
 
 
 
